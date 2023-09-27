@@ -11,6 +11,15 @@ It uses their APIs for access and read/write.
 [*] Renaming Files (This needs more work, as it will currently let you rename directories, which is not supported by Disbox currently)
 [ ] Deleting Files
 
+# Usage
+1. Clone the repository
+2. ```npm i ```
+3. Run index.js
+4. Log in to the FTP server with credentials from your Discord Webhook for Disbox
+    1. Username is the numerical section
+    2. Password is the longer string
+5. Use your Disbox storage via FTP
+
 # Credit to Disbox
 The majority of the disbox-file-manager.js code is taken directly from their repository, with just a few minor adjustments to handle Buffers over Blobs.
 All credit goes to DisBox for that implementation and code.
