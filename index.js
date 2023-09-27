@@ -94,7 +94,6 @@ class DiscordFileSystem extends FileSystem {
         this.realcwd = `${this.realcwd}/${path}`;
         this.realcwd = this.realcwd.replace(/\/+/g, '/'); // remove double slashes
         this.realcwd = this.realcwd.replace(/\/+$/, ''); // remove trailing slash
-        console.log(this.realcwd);
         break;
     }
     return Promise.resolve();
