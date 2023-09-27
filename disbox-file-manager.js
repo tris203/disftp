@@ -1,3 +1,4 @@
+/* eslint-disable */ 
 /* global chrome */
 const { sha256 } = require('js-sha256');
 
@@ -34,7 +35,7 @@ async function fetchUrlFromExtension(url) {
           resolve(response.data);
         },
       );
-    } catch {
+    } catch (e) {
       resolve(null);
     }
   });

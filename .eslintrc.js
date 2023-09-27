@@ -4,7 +4,10 @@ module.exports = {
     commonjs: true,
     es2021: true,
   },
-  extends: ['airbnb-base', 'prettier'],
+  extends: ['airbnb', 'prettier'],
+  plugins: ['prettier'],
   overrides: [],
-  rules: {},
+  rules: {
+    'prettier/prettier': 'error',
+  },
 };

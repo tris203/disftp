@@ -1,11 +1,11 @@
 // Quick start, create an active ftp server.
 const FtpSrv = require('ftp-srv');
 const FileSystem = require('ftp-srv');
-const DiscordFileManager = require('./disbox-file-manager.js');
 const Stream = require('stream');
 const fs = require('fs');
+const DiscordFileManager = require('./disbox-file-manager');
 
-class discordFileSystem extends FileSystem {
+class DiscordFileSystem extends FileSystem {
   constructor(connection, username, password) {
     super(connection, { root: './', cwd: '/' });
     this.connection = connection;
@@ -13,7 +13,7 @@ class discordFileSystem extends FileSystem {
     this.password = password;
     this.files = [];
     this.realcwd = '';
-    this._initalised = this.intialiseFileManager(username, password);
+    this.initalised = this.intialiseFileManager(username, password);
   }
 
   async intialiseFileManager(username, password) {
@@ -23,16 +23,15 @@ class discordFileSystem extends FileSystem {
   }
 
   currentDirectory() {
-    if (this.realcwd == '') {
+    if (this.realcwd === '') {
       return '/';
     }
     return this.realcwd;
   }
 
   async get(fileName) {
-    console.log('get', fileName);
-    await this._initalised;
-    if (fileName == '.') {
+    await this.initalised;
+    if (fileName === '.') {
       return Promise.resolve({
         name: '.',
         size: 0,
@@ -45,7 +44,7 @@ class discordFileSystem extends FileSystem {
     }
     this.files = this.fileManager.getChildren('');
     Object.values(this.files).map((file) => {
-      if (file.name == fileName) {
+      if (file.name === fileName) {
         return Promise.resolve({
           name: file.name,
           size: file.size,
@@ -56,94 +55,94 @@ class discordFileSystem extends FileSystem {
           isDirectory: () => file.type === 'directory',
         });
       }
+      return Promise.resolve();
     });
+    return Promise.resolve();
   }
 
-  async list(path) {
-    await this._initalised;
-    console.log('list', path);
-    if (this.realcwd == '/') {
+  async list() {
+    await this.initalised;
+    if (this.realcwd === '/') {
       this.files = this.fileManager.getChildren('');
     } else {
       this.files = this.fileManager.getChildren(this.realcwd);
     }
-    let fileList = Object.values(this.files).map((file) => {
-      return {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        atime: file.updated_at,
-        mtime: file.updated_at,
-        ctime: file.created_at,
-        isDirectory: () => file.type === 'directory',
-      };
-    });
+    const fileList = Object.values(this.files).map((file) => ({
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      atime: file.updated_at,
+      mtime: file.updated_at,
+      ctime: file.created_at,
+      isDirectory: () => file.type === 'directory',
+    }));
     return Promise.resolve(fileList);
   }
+
   chdir(path) {
     switch (true) {
-      case path == '..':
-        this.realcwd = this.realcwd.replace(/\/[^\/]+$/, '');
+      case path === '..':
+        this.realcwd = this.realcwd.replace(/\/[^/]+$/, '');
         break;
-      case path == '/':
+      case path === '/':
         this.realcwd = '';
         break;
       case path.startsWith('/'):
         this.realcwd = path;
         break;
       default:
-        this.realcwd = this.realcwd + '/' + path;
-        this.realcwd = this.realcwd.replace(/\/+/g, '/'); //remove double slashes
-        this.realcwd = this.realcwd.replace(/\/+$/, ''); //remove trailing slash
+        this.realcwd = `${this.realcwd}/${path}`;
+        this.realcwd = this.realcwd.replace(/\/+/g, '/'); // remove double slashes
+        this.realcwd = this.realcwd.replace(/\/+$/, ''); // remove trailing slash
         console.log(this.realcwd);
         break;
     }
     return Promise.resolve();
   }
+
   async mkdir(path) {
-    await this._initalised;
-    this.fileManager.createDirectory(this.realcwd + '/' + path);
+    await this.initalised;
+    this.fileManager.createDirectory(`${this.realcwd}/${path}`);
     return Promise.resolve();
   }
+
   async rename(oldPath, newPath) {
-    await this._initalised;
+    await this.initalised;
     const newFilename = newPath.split('/').pop();
     this.fileManager.renameFile(oldPath, newFilename);
     return Promise.resolve();
   }
-  async read(fileName, position, length) {
-    await this._initalised;
+
+  async read(fileName) {
+    await this.initalised;
     const passThrough = new Stream.PassThrough();
     this.fileManager
-      .downloadFile(this.realcwd + '/' + fileName, passThrough, false, true)
+      .downloadFile(`${this.realcwd}/${fileName}`, passThrough, false, true)
       .then(() => {
         passThrough.end();
         console.log('donwload complete');
       });
     return Promise.resolve(passThrough);
   }
-  async write(fileName, { append, start, end }) {
-    console.log('write', fileName, append, start, end);
-    const localFile = './tmp/' + fileName;
-    const stream = fs.createWriteStream(localFile);
-    await this._initalised;
-    stream.once('finish', () => {
-      //const blob = new Blob (stream.read());
-      //this.fileManager.uploadFile(this.realcwd + '/' + fileName, blob, false).then(() => {
-      fs.readFile(localFile, (err, data) => {
-        if (err) throw err;
-        const blob = new Blob([data]);
 
-        console.log(blob);
+  async write(fileName) {
+    const localFile = `./tmp/${fileName}`;
+    const stream = fs.createWriteStream(localFile);
+    await this.initalised;
+    stream.once('finish', () => {
+      // const blob = new Blob (stream.read());
+      // this.fileManager.uploadFile(this.realcwd + '/' + fileName, blob, false).then(() => {
+      fs.readFile(localFile, (readerr, data) => {
+        if (readerr) throw readerr;
+        const blob = new Blob([data]);
         this.fileManager
-          .uploadFile(this.realcwd + '/' + fileName, blob, false)
+          .uploadFile(`${this.realcwd}/${fileName}`, blob, false)
           .then(() => {
             console.log('upload complete');
 
-            //clear up local file
-            fs.unlink(localFile, (err) => {
-              if (err) throw err;
-              console.log('successfully cleared ' + localFile);
+            // clear up local file
+            fs.unlink(localFile, (unlinkerr) => {
+              if (unlinkerr) throw unlinkerr;
             });
           });
         // }
@@ -157,16 +156,16 @@ class discordFileSystem extends FileSystem {
 const port = 21;
 const ftpServer = new FtpSrv({
   // blacklist: ['PORT'],
-  url: 'ftp://0.0.0.0:' + port,
+  url: `ftp://0.0.0.0:${port}`,
   anonymous: true,
 });
 
-ftpServer.on('login', ({ connection, username, password }, resolve, reject) => {
-  return resolve({
-    fs: new discordFileSystem(connection, username, password),
+ftpServer.on('login', ({ connection, username, password }, resolve) =>
+  resolve({
+    fs: new DiscordFileSystem(connection, username, password),
     cwd: '/',
-  });
-});
+  }),
+);
 
 ftpServer.listen().then(() => {
   console.log('Ftp server is starting...');
