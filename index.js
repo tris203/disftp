@@ -168,5 +168,6 @@ ftpServer.on('login', ({ connection, username, password }, resolve) =>
 );
 
 ftpServer.listen().then(() => {
+  // eslint-disable-next-line no-console
   console.log('Ftp server is starting...');
 });
