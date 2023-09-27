@@ -17,9 +17,12 @@
     "js-sha256": "^0.10.1"
   },
   "devDependencies": {
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^9.2.0",
     "eslint": "^8.50.0",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-plugin-import": "^2.28.1",
-    "prettier": "3.0.3"
+    "prettier": "3.0.3",
+    "semantic-release": "^22.0.5"
   }
 }
