@@ -4,13 +4,7 @@ const config = {
     '@semantic-release/commit-analyzer',
     '@semantic-release/release-notes-generator',
     '@semantic-release/github',
-    '@codedependant/semantic-release-docker', {
-      dockerProject: 'tris203',
-      dockerArgs: {
-        RELEASE_VERSION: '{{next.version}}',
-      }
-      
-    }
+    '@codedependant/semantic-release-docker'
   ],
 };
 
