@@ -55,7 +55,7 @@ export class DisboxFileManager {
 
   getFile(path: string, copy = true): z.infer<typeof FileTreeSchema> | null {
     let file = this.fileTree;
-    const pathParts = path.split(FILE_DELIMITER);
+    let pathParts = path.split(FILE_DELIMITER);
     pathParts.shift(); // remove first empty part
     for (let i = 0; i < pathParts.length; i++) {
       if (file.children[pathParts[i]]) {
@@ -66,8 +66,9 @@ export class DisboxFileManager {
     }
     if (copy) {
       return { ...file, path };
+    } else {
+      return file;
     }
-    return file;
   }
 
   getChildren(path: string) {
@@ -110,6 +111,7 @@ export class DisboxFileManager {
   async updateFile(
     path: string,
     changes: z.infer<typeof UpdatableFieldsSchema>,
+    newPath?: string,
   ) {
     const file = this.getFile(path, false);
     if (!file) {
@@ -134,7 +136,7 @@ export class DisboxFileManager {
         `Error updating file: ${result.status} ${result.statusText}`,
       );
     }
-    const newFile = await this.getFile(path);
+    const newFile = await this.getFile(newPath || path);
     return newFile;
   }
 
@@ -152,7 +154,8 @@ export class DisboxFileManager {
 
     const parent = this.getParent(path);
     delete parent.children[file.name];
-    //parent.children[changes.name] = changes;
+    parent.children[newName] = changes;
+    parent.children[newName].name = newName;
 
     return this.getFile(newPath);
   }

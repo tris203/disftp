@@ -58,7 +58,7 @@ class DiscordFileSystem extends FileSystem {
         isDirectory: () => true,
       });
     }
-    this.files = this.fileManager.getChildren('');
+    this.files = await this.fileManager.getChildren('');
     Object.values(this.files).map((file) => {
       if (file.name === fileName) {
         return Promise.resolve({
@@ -76,12 +76,12 @@ class DiscordFileSystem extends FileSystem {
     return Promise.resolve();
   }
 
-  async list() {
+  async list(path: string) {
     await this.initalised;
     if (this.realcwd === '/') {
-      this.files = this.fileManager.getChildren('');
+      this.files = await this.fileManager.getChildren('');
     } else {
-      this.files = this.fileManager.getChildren(this.realcwd);
+      this.files = await this.fileManager.getChildren(this.realcwd);
     }
     const fileList = Object.values(this.files).map((file) => ({
       name: file.name,
@@ -112,20 +112,19 @@ class DiscordFileSystem extends FileSystem {
         this.realcwd = this.realcwd.replace(/\/+$/, ''); // remove trailing slash
         break;
     }
-    return Promise.resolve('');
+    return Promise.resolve(this.realcwd);
   }
 
   async mkdir(path: string) {
     await this.initalised;
-    this.fileManager.createDirectory(`${this.realcwd}/${path}`);
+    await this.fileManager.createDirectory(`${this.realcwd}/${path}`);
     return Promise.resolve();
   }
 
   async rename(oldPath: string, newPath: string) {
     await this.initalised;
     const newFilename = newPath.split('/').pop();
-    this.fileManager.renameFile(oldPath, newFilename);
-    return Promise.resolve();
+    await this.fileManager.renameFile(oldPath, newFilename);
   }
 
   async read(fileName: string) {
@@ -135,7 +134,7 @@ class DiscordFileSystem extends FileSystem {
       .downloadFile(`${this.realcwd}/${fileName}`, passThrough, false, true)
       .then(() => {
         passThrough.end();
-        console.log('donwload complete');
+        console.log('download complete');
       });
     return Promise.resolve(passThrough);
   }
@@ -167,7 +166,7 @@ class DiscordFileSystem extends FileSystem {
     return Promise.resolve(stream);
   }
   delete(fileName: string) {
-    return Promise.resolve();
+    return Promise.resolve('');
   }
   chmod(fileName: string) {
     return Promise.resolve('');

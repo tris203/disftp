@@ -97,7 +97,10 @@ export class DiscordFileStorage {
     const attachmentUrls = [];
     for (const id of messageIds) {
       const message = await this.webhookClient.getMessage(id);
-      attachmentUrls.push(message.attachments[0].url);
+      const url = message.attachments[0].url;
+      const urlObj = new URL(url);
+      const shortenedUrl = `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}`;
+      attachmentUrls.push(shortenedUrl);
     }
     return attachmentUrls;
   }
