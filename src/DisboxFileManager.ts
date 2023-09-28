@@ -1,239 +1,23 @@
-/* eslint-disable */ 
-/* global chrome */
-const { sha256 } = require('js-sha256');
-
+import { DiscordFileStorage } from './DiscordFileStorage';
+import { z } from 'zod';
+import {
+  FileTreeSchema,
+  FileTreeArraySchema,
+  UpdatableFieldsSchema,
+} from './schemas';
+import { sha256 } from 'js-sha256';
+import { WriteStream } from 'fs';
 const FILE_DELIMITER = '/';
 const SERVER_URL = 'https://disboxserver.azurewebsites.net';
 
-const FILE_CHUNK_SIZE = 25 * 1024 * 1023; // Almost 25MB
+export class DisboxFileManager {
+  userId: string;
+  discordFileStorage: DiscordFileStorage;
+  fileTree: any;
 
-async function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function* readFile(file, chunkSize) {
-  const fileSize = file.size;
-  let offset = 0;
-
-  while (offset < fileSize) {
-    const blob = file.slice(offset, offset + chunkSize);
-    yield await blob.arrayBuffer();
-    offset += chunkSize;
-  }
-}
-
-async function fetchUrlFromExtension(url) {
-  return new Promise((resolve, reject) => {
-    try {
-      chrome.runtime.sendMessage(
-        'jklpfhklkhbfgeencifbmkoiaokeieah',
-        { message: { url } },
-        (response) => {
-          if (!response || !('data' in response)) {
-            resolve(null);
-          }
-          resolve(response.data);
-        },
-      );
-    } catch (e) {
-      resolve(null);
-    }
-  });
-}
-
-async function fetchUrlFromProxy(url) {
-  return await fetch(url);
-}
-
-async function fetchUrl(url) {
-  const extensionResult = await fetchUrlFromExtension(url);
-  if (extensionResult !== null) {
-    return await (await fetch(extensionResult)).blob();
-  }
-  return await (await fetchUrlFromProxy(url)).blob();
-}
-
-async function downloadFromAttachmentUrls(
-  attachmentUrls,
-  writeStream,
-  onProgress = null,
-  fileSize = -1,
-  returnBuffer = false,
-) {
-  console.log(
-    `downlading ${attachmentUrls} with a returnBuffer of ${returnBuffer}`,
-  );
-  let bytesDownloaded = 0;
-  if (onProgress) {
-    onProgress(0, fileSize);
-  }
-  if (returnBuffer) {
-    console.log('returnBuffer is true');
-    for (const attachmentUrl of attachmentUrls) {
-      const blob = await (await fetchUrl(attachmentUrl)).arrayBuffer();
-      writeStream.write(Buffer.from(blob));
-    }
-  }
-
-  if (!returnBuffer) {
-    for (const attachmentUrl of attachmentUrls) {
-      const blob = await fetchUrl(attachmentUrl);
-      await writeStream.write(blob);
-      bytesDownloaded += blob.size;
-      if (onProgress) {
-        onProgress(bytesDownloaded, fileSize);
-      }
-    }
-  }
-  if (!returnBuffer) {
-    await writeStream.close();
-  } else {
-    // await writeStream();
-  }
-}
-
-class DiscordWebhookClient {
-  constructor(webhookUrl) {
-    const id = webhookUrl.split('/').slice(0, -1).pop();
-    const token = webhookUrl.split('/').pop();
-    this.baseUrl = `https://discordapp.com/api/webhooks/${id}/${token}`;
-    this.rateLimitWaits = {};
-  }
-
-  async fetchFromApi(path, { type, method, body }) {
-    if (this.rateLimitWaits[type] > 0) {
-      console.log(
-        `Waiting ${this.rateLimitWaits[type]}ms for rate limit to reset`,
-      );
-      await sleep(this.rateLimitWaits[type]);
-    }
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      body,
-    });
-    const { headers } = response;
-    const remainingRequests = Number(headers.get('X-RateLimit-Remaining'));
-    const resetAfter = Number(headers.get('X-RateLimit-Reset-After'));
-    this.rateLimitWaits[type] = remainingRequests === 0 ? resetAfter * 1000 : 0;
-
-    const { status } = response;
-    if (status === 429) {
-      const responseJson = await response.json();
-      const retryAfter = responseJson.retry_after;
-      this.rateLimitWaits[type] = retryAfter * 1000;
-      console.log('Rate limit exceeded, retrying');
-      return await this.fetchFromApi(path, { method, body, type });
-    }
-    if (status >= 400) {
-      throw new Error(
-        `Failed to ${type} with status ${status}: ${await response.text()}`,
-      );
-    }
-    return response;
-  }
-
-  async sendAttachment(filename, blob) {
-    const formData = new FormData();
-    formData.append('payload_json', JSON.stringify({}));
-    formData.append('file', blob, filename);
-    const response = await this.fetchFromApi('?wait=true', {
-      type: 'sendAttachment',
-      method: 'POST',
-      body: formData,
-    });
-    return await response.json();
-  }
-
-  async getMessage(id) {
-    const response = await this.fetchFromApi(`/messages/${id}`, {
-      type: 'getMessage',
-      method: 'GET',
-    });
-    return await response.json();
-  }
-
-  async deleteMessage(id) {
-    await this.fetchFromApi(`/messages/${id}`, {
-      type: 'deleteMessage',
-      method: 'DELETE',
-    });
-  }
-}
-
-class DiscordFileStorage {
-  constructor(webhookUrl) {
-    this.webhookClient = new DiscordWebhookClient(webhookUrl);
-  }
-
-  async getAttachmentUrls(messageIds) {
-    const attachmentUrls = [];
-    for (const id of messageIds) {
-      const message = await this.webhookClient.getMessage(id);
-      attachmentUrls.push(message.attachments[0].url);
-    }
-    return attachmentUrls;
-  }
-
-  async upload(sourceFile, namePrefix, onProgress = null, sendBuffer = false) {
-    console.log(`uploading ${sourceFile} with a sendBuffer of ${sendBuffer}`);
-    const messageIds = [];
-    let uploadedBytes = 0;
-    let index = 0;
-    if (onProgress) {
-      onProgress(0, sourceFile.size);
-    }
-    for await (const chunk of readFile(sourceFile, FILE_CHUNK_SIZE)) {
-      let result;
-      result = await this.webhookClient.sendAttachment(
-        `${namePrefix}_${index}`,
-        new Blob([chunk]),
-      );
-      messageIds.push(result.id);
-      uploadedBytes += chunk.byteLength;
-      index++;
-      if (onProgress) {
-        onProgress(uploadedBytes, sourceFile.size);
-      }
-    }
-    return messageIds;
-  }
-
-  async download(
-    messageIds,
-    writeStream,
-    onProgress = null,
-    fileSize = -1,
-    returnBuffer = false,
-  ) {
-    const attachmentUrls = await this.getAttachmentUrls(messageIds);
-    await downloadFromAttachmentUrls(
-      attachmentUrls,
-      writeStream,
-      onProgress,
-      fileSize,
-      returnBuffer,
-    );
-  }
-
-  async delete(messageIds, onProgress) {
-    let chunksDeleted = 0;
-    if (onProgress) {
-      onProgress(0, messageIds.length);
-    }
-    for (const id of messageIds) {
-      await this.webhookClient.deleteMessage(id);
-      chunksDeleted++;
-      if (onProgress) {
-        onProgress(chunksDeleted, messageIds.length);
-      }
-    }
-  }
-}
-
-class DisboxFileManager {
-  static async create(webhookUrl) {
+  static async create(webhookUrl: string) {
     const url = new URL(webhookUrl);
-    const fileTrees = {};
+    const fileTrees = {} as z.infer<typeof FileTreeArraySchema>;
 
     // Handle Discord changing webhook URLs
     for (const hostname of ['discord.com', 'discordapp.com']) {
@@ -243,13 +27,13 @@ class DisboxFileManager {
         fileTrees[url.href] = await result.json();
       }
     }
-    if (fileTrees.length === 0) {
+    if (Object.keys(fileTrees).length === 0) {
       throw new Error('Failed to get files for user.');
     }
 
     // If one of them has entries, choose it no matter what the entered URL was.
     const [chosenUrl, fileTree] = Object.entries(fileTrees).sort(
-      (f1, f2) => f2[1].length - f1[1].length,
+      (f1, f2) => Object.keys(f2[1]).length - Object.keys(f1[1]).length,
     )[0];
 
     return new this(
@@ -259,13 +43,17 @@ class DisboxFileManager {
     );
   }
 
-  constructor(userId, storage, fileTree) {
+  constructor(
+    userId: string,
+    storage: DiscordFileStorage,
+    fileTree: z.infer<typeof FileTreeSchema>,
+  ) {
     this.userId = userId;
     this.discordFileStorage = storage;
     this.fileTree = fileTree;
   }
 
-  getFile(path, copy = true) {
+  getFile(path: string, copy = true): z.infer<typeof FileTreeSchema> | null {
     let file = this.fileTree;
     const pathParts = path.split(FILE_DELIMITER);
     pathParts.shift(); // remove first empty part
@@ -282,8 +70,8 @@ class DisboxFileManager {
     return file;
   }
 
-  getChildren(path) {
-    let children = {};
+  getChildren(path: string) {
+    let children = {} as z.infer<typeof FileTreeArraySchema>;
     if (path === '') {
       children = this.fileTree.children || {};
     } else {
@@ -297,7 +85,7 @@ class DisboxFileManager {
       children = file.children || {};
     }
 
-    const parsedChildren = {};
+    const parsedChildren = {} as z.infer<typeof FileTreeArraySchema>;
     for (const child in children) {
       const childPath = `${path}${FILE_DELIMITER}${child}`;
       parsedChildren[child] = { ...children[child], path: childPath };
@@ -305,7 +93,7 @@ class DisboxFileManager {
     return parsedChildren;
   }
 
-  getParent(path) {
+  getParent(path: string) {
     if (!path.includes(FILE_DELIMITER)) {
       return null;
     }
@@ -319,13 +107,16 @@ class DisboxFileManager {
     return this.getFile(parentPath);
   }
 
-  async updateFile(path, changes) {
+  async updateFile(
+    path: string,
+    changes: z.infer<typeof UpdatableFieldsSchema>,
+  ) {
     const file = this.getFile(path, false);
     if (!file) {
       throw new Error(`File not found: ${path}`);
     }
     const { id } = file;
-    if (!('updated_at' in changes)) {
+    if (!changes.updated_at) {
       changes.updated_at = new Date().toISOString();
     }
     const result = await fetch(
@@ -343,13 +134,11 @@ class DisboxFileManager {
         `Error updating file: ${result.status} ${result.statusText}`,
       );
     }
-    for (const key in changes) {
-      file[key] = changes[key];
-    }
-    return file;
+    const newFile = await this.getFile(path);
+    return newFile;
   }
 
-  async renameFile(path, newName) {
+  async renameFile(path: string, newName: string) {
     const file = this.getFile(path);
     if (!file) {
       throw new Error(`File not found: ${path}`);
@@ -363,12 +152,12 @@ class DisboxFileManager {
 
     const parent = this.getParent(path);
     delete parent.children[file.name];
-    parent.children[changes.name] = changes;
+    //parent.children[changes.name] = changes;
 
     return this.getFile(newPath);
   }
 
-  async moveFile(path, newParentPath) {
+  async moveFile(path: string, newParentPath: string) {
     const file = this.getFile(path);
     if (!file) {
       throw new Error(`File not found: ${path}`);
@@ -390,13 +179,19 @@ class DisboxFileManager {
       parent_id: newParent.id,
     });
 
-    delete parent.children[file.name];
-    newParent.children[file.name] = file;
+    if (newParent.children) {
+      delete parent.children[file.name];
+      newParent.children[file.name] = file;
+    }
     return changes;
   }
 
   // TODO: Delete a non-empty directory?
-  async deleteFile(path, onProgress) {
+  async deleteFile(
+    path: string,
+    onProgress = (number: number, filesize: number) =>
+      console.log('onProgress not set'),
+  ) {
     const file = this.getFile(path);
     if (!file) {
       throw new Error(`File not found: ${path}`);
@@ -432,11 +227,11 @@ class DisboxFileManager {
     }
   }
 
-  async createDirectory(path) {
+  async createDirectory(path: string) {
     await this.createFile(path, 'directory');
   }
 
-  async createFile(path, type = 'file') {
+  async createFile(path: string, type = 'file') {
     const file = this.getFile(path);
     if (file) {
       throw new Error(`File already exists: ${path}`);
@@ -470,9 +265,15 @@ class DisboxFileManager {
     return this.getFile(path);
   }
 
-  async uploadFile(path, fileBlob, onProgress, sendBuffer = false) {
+  async uploadFile(
+    path: string,
+    fileBlob: Blob,
+    onProgress = (number: number, filesize: number) =>
+      console.log('onProgress not set'),
+    sendBuffer = false,
+  ) {
     let file = this.getFile(path);
-    if (!file) {
+    while (!file) {
       await this.createFile(path);
       file = this.getFile(path);
     }
@@ -481,7 +282,7 @@ class DisboxFileManager {
     }
     const contentReferences = await this.discordFileStorage.upload(
       fileBlob,
-      file.id,
+      file.id.toString(),
       onProgress,
       sendBuffer,
     );
@@ -496,7 +297,13 @@ class DisboxFileManager {
     return file;
   }
 
-  async downloadFile(path, writeStream, onProgress, returnBuffer = false) {
+  async downloadFile(
+    path: string,
+    writeStream: WriteStream,
+    onProgress = (number: number, filesize: number) =>
+      console.log('onProgress not set'),
+    returnBuffer = false,
+  ) {
     const file = this.getFile(path);
     if (!file) {
       throw new Error(`File not found: ${path}`);
@@ -505,12 +312,16 @@ class DisboxFileManager {
       throw new Error(`Cannot download content from directory: ${path}`);
     }
 
+    if (file.content === null) {
+      throw new Error(`File has no content: ${path}`);
+    }
+
     const contentReferences = JSON.parse(file.content);
     await this.discordFileStorage.download(
       contentReferences,
       writeStream,
       onProgress,
-      file.size,
+      file.size || 0,
       returnBuffer,
     );
 
@@ -520,7 +331,7 @@ class DisboxFileManager {
     }
   }
 
-  async getAttachmentUrls(path) {
+  async getAttachmentUrls(path: string) {
     const file = this.getFile(path);
     if (!file) {
       throw new Error(`File not found: ${path}`);
@@ -529,9 +340,7 @@ class DisboxFileManager {
       throw new Error(`Cannot share directory: ${path}`);
     }
 
-    const contentReferences = JSON.parse(file.content);
+    const contentReferences = JSON.parse(file.content || '');
     return await this.discordFileStorage.getAttachmentUrls(contentReferences);
   }
 }
-
-module.exports = DisboxFileManager;

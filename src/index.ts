@@ -1,23 +1,39 @@
 // Quick start, create an active ftp server.
-const FtpSrv = require('ftp-srv');
-const FileSystem = require('ftp-srv');
-const Stream = require('stream');
-const fs = require('fs');
-const DiscordFileManager = require('./disbox-file-manager');
+import FtpSrv, { FtpConnection, FtpServerOptions } from 'ftp-srv';
+import FileSystem from 'ftp-srv';
+import Stream from 'stream';
+import fs from 'fs';
+import { DisboxFileManager } from './DisboxFileManager';
 
 class DiscordFileSystem extends FileSystem {
-  constructor(connection, username, password) {
-    super(connection, { root: './', cwd: '/' });
+  connection: any;
+  username: string;
+  password: string;
+  fileManager: any;
+  files: any[];
+  realcwd: string;
+  initalised: Promise<void>;
+  root: string;
+  cwd: string;
+
+  constructor(
+    connection: FtpServerOptions | FtpConnection,
+    username: string,
+    password: string,
+  ) {
+    super(connection);
     this.connection = connection;
     this.username = username;
     this.password = password;
+    this.root = '/';
     this.files = [];
     this.realcwd = '';
+    this.cwd = this.realcwd;
     this.initalised = this.intialiseFileManager(username, password);
   }
 
-  async intialiseFileManager(username, password) {
-    this.fileManager = await DiscordFileManager.create(
+  async intialiseFileManager(username: string, password: string) {
+    this.fileManager = await DisboxFileManager.create(
       `https://discord.com/api/webhooks/${username}/${password}`,
     );
   }
@@ -29,7 +45,7 @@ class DiscordFileSystem extends FileSystem {
     return this.realcwd;
   }
 
-  async get(fileName) {
+  async get(fileName: string) {
     await this.initalised;
     if (fileName === '.') {
       return Promise.resolve({
@@ -79,7 +95,7 @@ class DiscordFileSystem extends FileSystem {
     return Promise.resolve(fileList);
   }
 
-  chdir(path) {
+  chdir(path: string) {
     switch (true) {
       case path === '..':
         this.realcwd = this.realcwd.replace(/\/[^/]+$/, '');
@@ -96,23 +112,23 @@ class DiscordFileSystem extends FileSystem {
         this.realcwd = this.realcwd.replace(/\/+$/, ''); // remove trailing slash
         break;
     }
-    return Promise.resolve();
+    return Promise.resolve('');
   }
 
-  async mkdir(path) {
+  async mkdir(path: string) {
     await this.initalised;
     this.fileManager.createDirectory(`${this.realcwd}/${path}`);
     return Promise.resolve();
   }
 
-  async rename(oldPath, newPath) {
+  async rename(oldPath: string, newPath: string) {
     await this.initalised;
     const newFilename = newPath.split('/').pop();
     this.fileManager.renameFile(oldPath, newFilename);
     return Promise.resolve();
   }
 
-  async read(fileName) {
+  async read(fileName: string) {
     await this.initalised;
     const passThrough = new Stream.PassThrough();
     this.fileManager
@@ -124,7 +140,7 @@ class DiscordFileSystem extends FileSystem {
     return Promise.resolve(passThrough);
   }
 
-  async write(fileName) {
+  async write(fileName: string) {
     const localFile = `./tmp/${fileName}`;
     const stream = fs.createWriteStream(localFile);
     await this.initalised;
@@ -149,6 +165,15 @@ class DiscordFileSystem extends FileSystem {
       });
     });
     return Promise.resolve(stream);
+  }
+  delete(fileName: string) {
+    return Promise.resolve();
+  }
+  chmod(fileName: string) {
+    return Promise.resolve('');
+  }
+  getUniqueName(fileName: string) {
+    return fileName;
   }
 }
 
