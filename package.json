@@ -9,7 +9,10 @@
     "url": "https://github.com/tris203/disftp.git"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "ts-node-dev --respawn --transpile-only ./src/index.ts",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "rimraf ./dist && tsc",
+    "start": "npm run build && node ./dist/index.js"
   },
   "author": "",
   "license": "ISC",
@@ -20,6 +23,7 @@
     "zod": "^3.22.2"
   },
   "devDependencies": {
+    "@codedependant/semantic-release-docker": "^4.4.0",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^9.2.0",
     "@types/node": "^20.7.1",
@@ -33,7 +37,9 @@
     "eslint-plugin-react": "^7.28.0",
     "eslint-plugin-react-hooks": "^4.3.0",
     "prettier": "3.0.3",
+    "rimraf": "^5.0.5",
     "semantic-release": "^22.0.5",
+    "ts-node-dev": "^2.0.0",
     "typescript": "^5.2.2"
   }
 }

@@ -177,10 +177,14 @@ class DiscordFileSystem extends FileSystem {
 }
 
 const port = 21;
+const hostname = '0.0.0.0';
+
 const ftpServer = new FtpSrv({
   // blacklist: ['PORT'],
-  url: `ftp://0.0.0.0:${port}`,
-  anonymous: true,
+  url: `ftp://${hostname}:${port}`,
+  pasv_url: `${process.env.PASV_HOSTNAME}`,
+  pasv_min: 65500,
+  pasv_max: 65515,
 });
 
 ftpServer.on('login', ({ connection, username, password }, resolve) =>
@@ -193,4 +197,7 @@ ftpServer.on('login', ({ connection, username, password }, resolve) =>
 ftpServer.listen().then(() => {
   // eslint-disable-next-line no-console
   console.log('Ftp server is starting...');
+  console.log(
+    `Listening on ${hostname}:${port} with pasv on ${process.env.PASV_HOSTNAME}`,
+  );
 });
