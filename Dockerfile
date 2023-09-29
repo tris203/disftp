@@ -8,6 +8,7 @@ RUN npm run build
 FROM node:lts-alpine as production
 ARG NODE_ENV=production
 WORKDIR /usr/src/app
+RUN mkdir -p /usr/src/app/tmp
 COPY package*.json .
 RUN npm ci --omit=dev
 COPY --from=development /usr/src/app/dist ./dist
