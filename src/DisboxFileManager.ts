@@ -136,32 +136,8 @@ export class DisboxFileManager {
         `Error updating file: ${result.status} ${result.statusText}`,
       );
     }
-    type validKeys = keyof z.infer<typeof UpdatableFieldsSchema>;
-    Object.keys(changes).forEach((key) => {
-      console.log(`Changing file ${file.name} ${key}`);
-      switch (key as validKeys) {
-        case 'name':
-          file.name = changes.name || file.name;
-          break;
-        case 'parent_id':
-          file.parent_id = changes.parent_id || file.parent_id;
-          break;
-        case 'content':
-          file.content = changes.content || file.content;
-          break;
-        case 'size':
-          console.log(
-            `Changing file ${file.name} size to ${changes.size} from ${file.size}`,
-          );
-          file.size = Number(changes.size) || Number(file.size);
-          break;
-        case 'updated_at':
-          file.updated_at = changes.updated_at || file.updated_at;
-          break;
-      }
-    });
-
-    return file;
+    const newFile = await this.getFile(newPath || path);
+    return newFile;
   }
 
   async renameFile(path: string, newName: string) {
