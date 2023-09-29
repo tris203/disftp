@@ -163,7 +163,6 @@ class DiscordFileSystem extends FileSystem {
         // );
       });
     });
-    await this.fileManager.getFile(`${this.realcwd}/${fileName}`);
     return Promise.resolve(stream);
   }
   delete(fileName: string) {
