@@ -7,18 +7,23 @@ It uses their APIs for access and read/write.
 # Features
 [*] File List
 [*] Downloading Files (Files are streamed from web)
-[*] Uploading Files, file is uploaded locally to the server then uploaded through the Discord Webhook. (This can be improved in future to stream the data directly and upload asynchronasly)
+[*] Uploading Files, file is uploaded locally to the server then uploaded through the Discord Webhook. (This can be improved in future to stream the data directly and upload asynchron)
 [*] Renaming Files (This needs more work, as it will currently let you rename directories, which is not supported by Disbox currently)
 [ ] Deleting Files
 
 # Usage
 1. Clone the repository
 2. ```npm i ```
-3. Run index.js
+3. ```npm run start```
 4. Log in to the FTP server with credentials from your Discord Webhook for Disbox
     1. Username is the numerical section
     2. Password is the longer string
 5. Use your Disbox storage via FTP
+
+# Usage via Docker
+The package is also updated and pushed to DockerHub https://hub.docker.com/r/tris203/disftp
+Please note, that the network will need to be in a Custom mode with a local IP address to use Active Mode.
+If your docker is in Bridge mode then you will need to use a Passive Connection in your FTP Client
 
 # Credit to Disbox
 The majority of the disbox-file-manager.js code is taken directly from their repository, with just a few minor adjustments to handle Buffers over Blobs.
